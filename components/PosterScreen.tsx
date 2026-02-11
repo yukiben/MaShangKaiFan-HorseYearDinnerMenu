@@ -1,6 +1,7 @@
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { MenuData, Dish } from '../types';
+import html2canvas from 'html2canvas';
 
 interface Props {
   menu: MenuData;
@@ -8,6 +9,9 @@ interface Props {
 }
 
 const PosterScreen: React.FC<Props> = ({ menu, onBack }) => {
+  const posterRef = useRef<HTMLDivElement>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+
   const categories: Dish['type'][] = ['appetizer', 'main', 'soup', 'staple', 'dessert'];
   const categoryNames = {
     appetizer: '精选凉菜',
@@ -19,7 +23,6 @@ const PosterScreen: React.FC<Props> = ({ menu, onBack }) => {
 
   const totalDishes = menu.dishes.length;
   
-  // Calculate adaptive font sizes and spacing to prevent truncation
   const getResponsiveClasses = () => {
     if (totalDishes > 12) {
       return {
@@ -53,8 +56,40 @@ const PosterScreen: React.FC<Props> = ({ menu, onBack }) => {
 
   const styles = getResponsiveClasses();
 
-  const handleSaveImage = () => {
-    alert('长按海报即可保存到手机相册 (模拟功能)');
+  const handleSaveImage = async () => {
+    if (!posterRef.current) return;
+    
+    setIsCapturing(true);
+    try {
+      // Small delay to ensure any layout shifts are settled
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      const canvas = await html2canvas(posterRef.current, {
+        useCORS: true,
+        scale: 2, // Higher resolution for "High-Res" save
+        backgroundColor: null,
+        logging: false,
+        onclone: (clonedDoc) => {
+          // Ensure the cloned element is fully visible for capture
+          const clonedElement = clonedDoc.querySelector('[data-poster-container]') as HTMLElement;
+          if (clonedElement) {
+            clonedElement.style.height = 'auto';
+            clonedElement.style.maxHeight = 'none';
+          }
+        }
+      });
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `马上开饭_2026马年年夜饭_${new Date().getTime()}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error('Failed to capture poster:', error);
+      alert('保存失败，请重试');
+    } finally {
+      setIsCapturing(false);
+    }
   };
 
   return (
@@ -68,9 +103,12 @@ const PosterScreen: React.FC<Props> = ({ menu, onBack }) => {
       </header>
 
       <main className="flex-1 w-full flex flex-col items-center gap-6 py-4 px-6 overflow-y-auto">
-        {/* Dynamic height container with adaptive sizing */}
-        <div className={`relative w-full shadow-2xl shadow-primary/20 rounded-lg bg-gradient-to-br from-[#fff9f0] to-[#f7e8d0] text-slate-900 border-[10px] border-double border-[#331d1d] transition-all flex flex-col ${styles.containerPadding}`} style={{ minHeight: 'fit-content' }}>
-          
+        <div 
+          ref={posterRef}
+          data-poster-container
+          className={`relative w-full shadow-2xl shadow-primary/20 rounded-lg bg-gradient-to-br from-[#fff9f0] to-[#f7e8d0] text-slate-900 border-[10px] border-double border-[#331d1d] transition-all flex flex-col ${styles.containerPadding}`} 
+          style={{ minHeight: 'fit-content' }}
+        >
           {/* Decorative Corner Ornaments */}
           <div className="absolute top-2 left-2 w-10 h-10 border-t border-l border-primary/40"></div>
           <div className="absolute top-2 right-2 w-10 h-10 border-t border-r border-primary/40"></div>
@@ -91,6 +129,7 @@ const PosterScreen: React.FC<Props> = ({ menu, onBack }) => {
             <div className={`${styles.iconSize} opacity-80 flex-shrink-0`}>
               <img 
                 alt="Ink horse" 
+                crossOrigin="anonymous"
                 className="w-full h-full object-contain filter contrast-125" 
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuAB00WtMyscJ2zWxCKs20Anerkoni7d4DuDvEiqICumFl5Z8iJ2Meh3lW_QGA6t56PCvOG5gRmduVGiDkyor2AAtP9Ff-Og6JSj5PEtYMCFXWObqfqOP0M0HPpJ84CsOQggdBMoyuwHQxDnvTlSlb_F8DQ0UGfSZlDw02Gh9FDgeRK2cbE3U7ydvR2-Zk0xdi8xh3kMc69lwpQOq-QDN0LkCrFVXt4LdcdrsCqEbKElYdiYzDe17zk6jHtpVtlUigf8Pq5f2qC4PiZ1" 
               />
@@ -137,10 +176,11 @@ const PosterScreen: React.FC<Props> = ({ menu, onBack }) => {
         <div className="w-full pb-8 flex-shrink-0">
           <button 
             onClick={handleSaveImage}
-            className="w-full bg-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2 active:scale-95 transition-all"
+            disabled={isCapturing}
+            className={`w-full bg-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center gap-2 active:scale-95 transition-all ${isCapturing ? 'opacity-70 cursor-wait' : ''}`}
           >
-            <span className="material-icons">download</span>
-            <span>保存高清海报</span>
+            <span className="material-icons">{isCapturing ? 'hourglass_top' : 'download'}</span>
+            <span>{isCapturing ? '正在生成长图...' : '保存高清海报长图'}</span>
           </button>
         </div>
       </main>
